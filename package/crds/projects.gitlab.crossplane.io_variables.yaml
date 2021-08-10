@@ -31,7 +31,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: A Variable is a managed resource that represents a Gitlab CI variable
+        description: A Variable is a managed resource that represents a Gitlab CI variable.
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
@@ -62,13 +62,13 @@ spec:
                     pattern: ^[a-zA-Z0-9\_]+$
                     type: string
                   masked:
-                    description: Masked enables or disables variable masking
+                    description: Masked enables or disables variable masking.
                     type: boolean
                   projectId:
                     description: ProjectID is the ID of the project to create the variable on.
                     type: integer
                   projectIdRef:
-                    description: ProjectIDRef is a reference to a project to retrieve its projectId
+                    description: ProjectIDRef is a reference to a project to retrieve its projectId.
                     properties:
                       name:
                         description: Name of the referenced object.
@@ -89,13 +89,12 @@ spec:
                         type: object
                     type: object
                   protected:
-                    description: Protected enables or disables variable protection
+                    description: Protected enables or disables variable protection.
                     type: boolean
                   value:
                     description: Value for the variable.
                     type: string
                   variableType:
-                    default: env_var
                     description: VariableType is the type of the variable.
                     enum:
                     - env_var
@@ -143,7 +142,7 @@ spec:
             description: A VariableStatus represents the observed state of a Gitlab Project CI Variable.
             properties:
               atProvider:
-                description: "VariableObservation represents a CI variable. \n GitLab API docs: https://docs.gitlab.com/ee/api/deploy_tokens.html"
+                description: VariableObservation represents a CI variable.
                 type: object
               conditions:
                 description: Conditions of the resource.

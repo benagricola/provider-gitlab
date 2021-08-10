@@ -41,7 +41,7 @@ type VariableParameters struct {
 	// +immutable
 	ProjectID *int `json:"projectId,omitempty"`
 
-	// ProjectIDRef is a reference to a project to retrieve its projectId
+	// ProjectIDRef is a reference to a project to retrieve its projectId.
 	// +optional
 	// +immutable
 	ProjectIDRef *xpv1.Reference `json:"projectIdRef,omitempty"`
@@ -59,17 +59,16 @@ type VariableParameters struct {
 	// Value for the variable.
 	Value string `json:"value"`
 
-	// Masked enables or disables variable masking
+	// Masked enables or disables variable masking.
 	// +optional
 	Masked *bool `json:"masked,omitempty"`
 
-	// Protected enables or disables variable protection
+	// Protected enables or disables variable protection.
 	// +optional
 	Protected *bool `json:"protected,omitempty"`
 
 	// VariableType is the type of the variable.
 	// +kubebuilder:validation:Enum:=env_var;file
-	// +kubebuilder:default:=env_var
 	// +optional
 	VariableType *VariableType `json:"variableType,omitempty"`
 
@@ -80,9 +79,6 @@ type VariableParameters struct {
 }
 
 // VariableObservation represents a CI variable.
-//
-// GitLab API docs:
-// https://docs.gitlab.com/ee/api/deploy_tokens.html
 type VariableObservation struct{}
 
 // A VariableSpec defines the desired state of a Gitlab Project CI
@@ -101,7 +97,7 @@ type VariableStatus struct {
 
 // +kubebuilder:object:root=true
 
-// A Variable is a managed resource that represents a Gitlab CI variable
+// A Variable is a managed resource that represents a Gitlab CI variable.
 // +kubebuilder:printcolumn:name="READY",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="SYNCED",type="string",JSONPath=".status.conditions[?(@.type=='Synced')].status"
 // +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=".metadata.creationTimestamp"
@@ -117,7 +113,7 @@ type Variable struct {
 
 // +kubebuilder:object:root=true
 
-// VariableList contains a list of Variable items
+// VariableList contains a list of Variable items.
 type VariableList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
