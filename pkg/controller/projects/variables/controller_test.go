@@ -182,7 +182,7 @@ func TestObserve(t *testing.T) {
 					MockGetProjectVariable: func(pid interface{}, key string, options ...gitlab.RequestOptionFunc) (*gitlab.ProjectVariable, *gitlab.Response, error) {
 						rv := pv
 						rv.Masked = true
-						rv.VariableType = *gitlab.VariableType(gitlab.FileVariableType)
+						rv.VariableType = gitlab.FileVariableType
 						return &rv, &gitlab.Response{}, nil
 					},
 				},
