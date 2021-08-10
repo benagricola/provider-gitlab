@@ -35,16 +35,30 @@ import (
 )
 
 var (
-	errBoom       = errors.New("boom")
-	projectID     = 5678
-	variableKey   = "VARIABLE_KEY"
-	variableValue = "1234"
+	errBoom          = errors.New("boom")
+	projectID        = 5678
+	variableKey      = "VARIABLE_KEY"
+	variableValue    = "1234"
+	variableType     = v1alpha1.VariableTypeEnvVar
+	variableEnvScope = "*"
+	f                = false
+)
+
+var (
+	pv = gitlab.ProjectVariable{
+		Value:            variableValue,
+		Key:              variableKey,
+		EnvironmentScope: variableEnvScope,
+		VariableType:     gitlab.VariableTypeValue(variableType),
+		Protected:        f,
+		Masked:           f,
+	}
 )
 
 type args struct {
 	variable projects.VariableClient
-	kube        client.Client
-	cr          *v1alpha1.Variable
+	kube     client.Client
+	cr       *v1alpha1.Variable
 }
 
 type variableModifier func(*v1alpha1.Variable)
@@ -56,9 +70,13 @@ func withConditions(c ...xpv1.Condition) variableModifier {
 func withDefaultValues() variableModifier {
 	return func(pv *v1alpha1.Variable) {
 		pv.Spec.ForProvider = v1alpha1.VariableParameters{
-			ProjectID: &projectID,
-			Key: variableKey,
-			Value: variableValue,
+			ProjectID:        &projectID,
+			Key:              variableKey,
+			Value:            variableValue,
+			Protected:        &f,
+			Masked:           &f,
+			VariableType:     &variableType,
+			EnvironmentScope: &variableEnvScope,
 		}
 	}
 }
@@ -78,6 +96,18 @@ func withValue(value string) variableModifier {
 func withKey(key string) variableModifier {
 	return func(r *v1alpha1.Variable) {
 		r.Spec.ForProvider.Key = key
+	}
+}
+
+func withMasked(masked bool) variableModifier {
+	return func(r *v1alpha1.Variable) {
+		r.Spec.ForProvider.Masked = &masked
+	}
+}
+
+func withVariableType(variableType v1alpha1.VariableType) variableModifier {
+	return func(r *v1alpha1.Variable) {
+		r.Spec.ForProvider.VariableType = &variableType
 	}
 }
 
@@ -104,7 +134,7 @@ func TestObserve(t *testing.T) {
 			args: args{
 				variable: &fake.MockClient{
 					MockGetProjectVariable: func(pid interface{}, key string, options ...gitlab.RequestOptionFunc) (*gitlab.ProjectVariable, *gitlab.Response, error) {
-						return &gitlab.ProjectVariable{}, &gitlab.Response{}, nil
+						return &pv, &gitlab.Response{}, nil
 					},
 				},
 				cr: variable(withDefaultValues()),
@@ -124,9 +154,9 @@ func TestObserve(t *testing.T) {
 			args: args{
 				variable: &fake.MockClient{
 					MockGetProjectVariable: func(pid interface{}, key string, options ...gitlab.RequestOptionFunc) (*gitlab.ProjectVariable, *gitlab.Response, error) {
-						return &gitlab.ProjectVariable{
-							Value: "test",
-						}, &gitlab.Response{}, nil
+						rv := pv
+						rv.Value = "not-up-to-date"
+						return &rv, &gitlab.Response{}, nil
 					},
 				},
 				cr: variable(
@@ -138,6 +168,7 @@ func TestObserve(t *testing.T) {
 				cr: variable(
 					withDefaultValues(),
 					withValue("blah"),
+					withConditions(xpv1.Available()),
 				),
 				result: managed.ExternalObservation{
 					ResourceExists:   true,
@@ -149,25 +180,58 @@ func TestObserve(t *testing.T) {
 			args: args{
 				variable: &fake.MockClient{
 					MockGetProjectVariable: func(pid interface{}, key string, options ...gitlab.RequestOptionFunc) (*gitlab.ProjectVariable, *gitlab.Response, error) {
-						return &gitlab.ProjectVariable{}, &gitlab.Response{}, nil
+						rv := pv
+						rv.Masked = true
+						rv.VariableType = *gitlab.VariableType(gitlab.FileVariableType)
+						return &rv, &gitlab.Response{}, nil
 					},
 				},
 				cr: variable(
 					withProjectID(projectID),
 					withKey(variableKey),
+					withValue(variableValue),
+					withVariableType(v1alpha1.VariableTypeEnvVar),
 				),
 			},
 			want: want{
 				cr: variable(
 					withDefaultValues(),
 					withKey(variableKey),
+					// We expect the masked value to be late-inited to true
+					withMasked(true),
+					// We expect the variable type value to be unchanged,
+					// as it was already set in the existing CR.
+					withVariableType(v1alpha1.VariableTypeEnvVar),
 					withConditions(xpv1.Available()),
 				),
 				result: managed.ExternalObservation{
-					ResourceExists:          true,
-					ResourceUpToDate:        true,
+					ResourceExists: true,
+					// Resource is not up to date as local and remote
+					// variableType setting do not match.
+					ResourceUpToDate:        false,
 					ResourceLateInitialized: true,
 				},
+			},
+		},
+		"GetError": {
+			args: args{
+				variable: &fake.MockClient{
+					MockGetProjectVariable: func(pid interface{}, key string, options ...gitlab.RequestOptionFunc) (*gitlab.ProjectVariable, *gitlab.Response, error) {
+						return &gitlab.ProjectVariable{}, &gitlab.Response{}, errBoom
+					},
+				},
+				cr: variable(
+					withDefaultValues(),
+					withValue("blah"),
+				),
+			},
+			want: want{
+				cr: variable(
+					withDefaultValues(),
+					withValue("blah"),
+				),
+				result: managed.ExternalObservation{},
+				err:    errors.Wrap(errBoom, errGetFailed),
 			},
 		},
 	}
