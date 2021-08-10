@@ -51,6 +51,8 @@ type VariableParameters struct {
 	ProjectIDSelector *xpv1.Selector `json:"projectIdSelector,omitempty"`
 
 	// Key for the variable.
+	// +kubebuilder:validation:Pattern:=^[a-zA-Z0-9\_]+$
+	// +kubebuilder:validation:MaxLength:=255
 	// +immutable
 	Key string `json:"key"`
 

@@ -58,6 +58,8 @@ spec:
                     type: string
                   key:
                     description: Key for the variable.
+                    maxLength: 255
+                    pattern: ^[a-zA-Z0-9\_]+$
                     type: string
                   masked:
                     description: Masked enables or disables variable masking
