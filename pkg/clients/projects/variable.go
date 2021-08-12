@@ -17,11 +17,20 @@ limitations under the License.
 package projects
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
 	"strings"
+
+	corev1 "k8s.io/api/core/v1"
+
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	xpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/pkg/errors"
 	"github.com/xanzy/go-gitlab"
 
 	"github.com/crossplane-contrib/provider-gitlab/apis/projects/v1alpha1"
@@ -30,6 +39,9 @@ import (
 
 const (
 	errVariableNotFound = "404 Variable Not Found"
+	errGetSecretFailed  = "failed to get Kubernetes secret"
+
+	errFmtKeyNotFound = "key %s is not found in referenced Kubernetes secret"
 )
 
 // VariableClient defines Gitlab Variable service operations
@@ -92,10 +104,16 @@ func VariableToParameters(in gitlab.ProjectVariable) v1alpha1.VariableParameters
 }
 
 // GenerateCreateVariableOptions generates project creation options
-func GenerateCreateVariableOptions(p *v1alpha1.VariableParameters) *gitlab.CreateProjectVariableOptions {
+func GenerateCreateVariableOptions(p *v1alpha1.VariableParameters, sv *string) *gitlab.CreateProjectVariableOptions {
+	value := &p.Value
+
+	if sv != nil {
+		value = sv
+	}
+
 	variable := &gitlab.CreateProjectVariableOptions{
 		Key:              &p.Key,
-		Value:            &p.Value,
+		Value:            value,
 		VariableType:     (*gitlab.VariableTypeValue)(p.VariableType),
 		Protected:        p.Protected,
 		Masked:           p.Masked,
@@ -106,9 +124,15 @@ func GenerateCreateVariableOptions(p *v1alpha1.VariableParameters) *gitlab.Creat
 }
 
 // GenerateUpdateVariableOptions generates project update options
-func GenerateUpdateVariableOptions(p *v1alpha1.VariableParameters) *gitlab.UpdateProjectVariableOptions {
+func GenerateUpdateVariableOptions(p *v1alpha1.VariableParameters, sv *string) *gitlab.UpdateProjectVariableOptions {
+	value := &p.Value
+
+	if sv != nil {
+		value = sv
+	}
+
 	variable := &gitlab.UpdateProjectVariableOptions{
-		Value:            &p.Value,
+		Value:            value,
 		VariableType:     (*gitlab.VariableTypeValue)(p.VariableType),
 		Protected:        p.Protected,
 		Masked:           p.Masked,
@@ -119,15 +143,55 @@ func GenerateUpdateVariableOptions(p *v1alpha1.VariableParameters) *gitlab.Updat
 }
 
 // IsVariableUpToDate checks whether there is a change in any of the modifiable fields.
-func IsVariableUpToDate(p *v1alpha1.VariableParameters, g *gitlab.ProjectVariable) bool {
+func IsVariableUpToDate(p *v1alpha1.VariableParameters, sv *string, g *gitlab.ProjectVariable) bool {
 	if p == nil {
 		return true
 	}
 
-	return cmp.Equal(*p,
+	ep := *p
+
+	// If value comes from secret, then put secret value into
+	// value field prior to comparison.
+	if sv != nil {
+		ep = *p.DeepCopy()
+		ep.Value = *sv
+	}
+
+	return cmp.Equal(ep,
 		VariableToParameters(*g),
 		cmpopts.EquateEmpty(),
 		cmpopts.IgnoreTypes(&xpv1.Reference{}, &xpv1.Selector{}, []xpv1.Reference{}),
 		cmpopts.IgnoreFields(v1alpha1.VariableParameters{}, "ProjectID"),
 	)
+}
+
+func ResolveSecretValue(ctx context.Context, c client.Client, s *v1alpha1.VariableSecretReference) (*string, error) {
+	nn := types.NamespacedName{
+		Name:      s.Name,
+		Namespace: s.Namespace,
+	}
+
+	sc := &corev1.Secret{}
+	if err := c.Get(ctx, nn, sc); err != nil {
+		return nil, errors.Wrap(err, errGetSecretFailed)
+	}
+
+	if s.Key != nil {
+		val, ok := sc.Data[*s.Key]
+		if !ok {
+			return nil, errors.New(fmt.Sprintf(errFmtKeyNotFound, *s.Key))
+		}
+		sv := string(val)
+		return &sv, nil
+	}
+	d := map[string]string{}
+	for k, v := range sc.Data {
+		d[k] = string(v)
+	}
+	payload, err := json.Marshal(d)
+	if err != nil {
+		return nil, err
+	}
+	sv := string(payload)
+	return &sv, nil
 }

@@ -8,4 +8,8 @@ spec:
       name: my-project
     variableType: file
     key: AWS_ROLE_ARN
-    value: arn:aws:iam::999999999:role/my-deploy-role
+    #value: arn:aws:iam::999999999:role/my-deploy-role
+    secretValueRef:
+      name: deploy-var
+      namespace: default
+      key: test

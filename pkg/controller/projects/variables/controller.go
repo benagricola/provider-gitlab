@@ -92,6 +92,15 @@ func (e *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		return managed.ExternalObservation{}, errors.Wrap(resource.Ignore(projects.IsErrorVariableNotFound, err), errGetFailed)
 	}
 
+	var sv *string
+
+	if cr.Spec.ForProvider.SecretValueRef != nil {
+		sv, err = projects.ResolveSecretValue(ctx, e.kube, cr.Spec.ForProvider.SecretValueRef)
+		if err != nil {
+			return managed.ExternalObservation{}, errors.Wrap(err, errGetFailed)
+		}
+	}
+
 	current := cr.Spec.ForProvider.DeepCopy()
 	projects.LateInitializeVariable(&cr.Spec.ForProvider, variable)
 
@@ -99,7 +108,7 @@ func (e *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 
 	return managed.ExternalObservation{
 		ResourceExists:          true,
-		ResourceUpToDate:        projects.IsVariableUpToDate(&cr.Spec.ForProvider, variable),
+		ResourceUpToDate:        projects.IsVariableUpToDate(&cr.Spec.ForProvider, sv, variable),
 		ResourceLateInitialized: !cmp.Equal(current, &cr.Spec.ForProvider),
 	}, nil
 }
@@ -110,8 +119,18 @@ func (e *external) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 		return managed.ExternalCreation{}, errors.New(errNotVariable)
 	}
 
+	var sv *string
+	var err error
+
+	if cr.Spec.ForProvider.SecretValueRef != nil {
+		sv, err = projects.ResolveSecretValue(ctx, e.kube, cr.Spec.ForProvider.SecretValueRef)
+		if err != nil {
+			return managed.ExternalCreation{}, errors.Wrap(err, errCreateFailed)
+		}
+	}
+
 	cr.Status.SetConditions(xpv1.Creating())
-	_, _, err := e.client.CreateVariable(*cr.Spec.ForProvider.ProjectID, projects.GenerateCreateVariableOptions(&cr.Spec.ForProvider), gitlab.WithContext(ctx))
+	_, _, err = e.client.CreateVariable(*cr.Spec.ForProvider.ProjectID, projects.GenerateCreateVariableOptions(&cr.Spec.ForProvider, sv), gitlab.WithContext(ctx))
 	if err != nil {
 		return managed.ExternalCreation{}, errors.Wrap(err, errCreateFailed)
 	}
@@ -124,10 +143,20 @@ func (e *external) Update(ctx context.Context, mg resource.Managed) (managed.Ext
 		return managed.ExternalUpdate{}, errors.New(errNotVariable)
 	}
 
-	_, _, err := e.client.UpdateVariable(
+	var sv *string
+	var err error
+
+	if cr.Spec.ForProvider.SecretValueRef != nil {
+		sv, err = projects.ResolveSecretValue(ctx, e.kube, cr.Spec.ForProvider.SecretValueRef)
+		if err != nil {
+			return managed.ExternalUpdate{}, errors.Wrap(err, errCreateFailed)
+		}
+	}
+
+	_, _, err = e.client.UpdateVariable(
 		*cr.Spec.ForProvider.ProjectID,
 		cr.Spec.ForProvider.Key,
-		projects.GenerateUpdateVariableOptions(&cr.Spec.ForProvider),
+		projects.GenerateUpdateVariableOptions(&cr.Spec.ForProvider, sv),
 		gitlab.WithContext(ctx),
 	)
 	return managed.ExternalUpdate{}, errors.Wrap(err, errUpdateFailed)

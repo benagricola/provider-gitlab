@@ -57,7 +57,13 @@ type VariableParameters struct {
 	Key string `json:"key"`
 
 	// Value for the variable.
-	Value string `json:"value"`
+	// If not specified, a secretValueRef must be supplied.
+	// +optional.
+	Value string `json:"value,omitempty"`
+
+	// SecretValueRef refers to a secret containing the value.
+	// +optional
+	SecretValueRef *VariableSecretReference `json:"secretValueRef,omitempty"`
 
 	// Masked enables or disables variable masking.
 	// +optional
@@ -76,6 +82,20 @@ type VariableParameters struct {
 	// that this variable is applied to.
 	// +optional
 	EnvironmentScope *string `json:"environmentScope,omitempty"`
+}
+
+// VariableSecretReference refers to a Variable value stored in a
+// Kubernetes secret.
+type VariableSecretReference struct {
+	// Name of the secret.
+	Name string `json:"name"`
+
+	// Namespace of the secret.
+	Namespace string `json:"namespace"`
+
+	// Key whose value will be used. If not given, the whole map in the Secret
+	// data will be used.
+	Key *string `json:"key,omitempty"`
 }
 
 // VariableObservation represents a CI variable.

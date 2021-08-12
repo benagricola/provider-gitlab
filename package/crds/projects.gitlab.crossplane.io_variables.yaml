@@ -91,8 +91,24 @@ spec:
                   protected:
                     description: Protected enables or disables variable protection.
                     type: boolean
+                  secretValueRef:
+                    description: SecretValueRef refers to a secret containing the value.
+                    properties:
+                      key:
+                        description: Key whose value will be used. If not given, the whole map in the Secret data will be used.
+                        type: string
+                      name:
+                        description: Name of the secret.
+                        type: string
+                      namespace:
+                        description: Namespace of the secret.
+                        type: string
+                    required:
+                    - name
+                    - namespace
+                    type: object
                   value:
-                    description: Value for the variable.
+                    description: Value for the variable. If not specified, a secretValueRef must be supplied.
                     type: string
                   variableType:
                     description: VariableType is the type of the variable.
@@ -102,7 +118,6 @@ spec:
                     type: string
                 required:
                 - key
-                - value
                 type: object
               providerConfigRef:
                 description: ProviderConfigReference specifies how the provider that will be used to create, observe, update, and delete this managed resource should be configured.

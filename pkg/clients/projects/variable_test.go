@@ -111,7 +111,8 @@ func TestLateInitializeVariable(t *testing.T) {
 
 func TestGenerateCreateVariableOptions(t *testing.T) {
 	type args struct {
-		parameters *v1alpha1.VariableParameters
+		parameters  *v1alpha1.VariableParameters
+		secretValue *string
 	}
 	cases := map[string]struct {
 		args args
@@ -151,10 +152,25 @@ func TestGenerateCreateVariableOptions(t *testing.T) {
 				VariableType: &variableType,
 			},
 		},
+		"SecretValueOverride": {
+			args: args{
+				parameters: &v1alpha1.VariableParameters{
+					Key:          variableKey,
+					Value:        "RANDOM VALUE",
+					VariableType: &variableTypeLocal,
+				},
+				secretValue: &variableValue,
+			},
+			want: &gitlab.CreateProjectVariableOptions{
+				Key:          &variableKey,
+				Value:        &variableValue,
+				VariableType: &variableType,
+			},
+		},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			got := GenerateCreateVariableOptions(tc.args.parameters)
+			got := GenerateCreateVariableOptions(tc.args.parameters, tc.args.secretValue)
 			if diff := cmp.Diff(tc.want, got); diff != "" {
 				t.Errorf("r: -want, +got:\n%s", diff)
 			}
@@ -164,7 +180,8 @@ func TestGenerateCreateVariableOptions(t *testing.T) {
 
 func TestGenerateUpdateVariableOptions(t *testing.T) {
 	type args struct {
-		parameters *v1alpha1.VariableParameters
+		parameters  *v1alpha1.VariableParameters
+		secretValue *string
 	}
 	cases := map[string]struct {
 		args args
@@ -188,10 +205,24 @@ func TestGenerateUpdateVariableOptions(t *testing.T) {
 				EnvironmentScope: &variableEnvScope,
 			},
 		},
+		"SecretValueOverride": {
+			args: args{
+				parameters: &v1alpha1.VariableParameters{
+					Key:          variableKey,
+					Value:        "RANDOM VALUE",
+					VariableType: &variableTypeLocal,
+				},
+				secretValue: &variableValue,
+			},
+			want: &gitlab.UpdateProjectVariableOptions{
+				Value:        &variableValue,
+				VariableType: &variableType,
+			},
+		},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			got := GenerateUpdateVariableOptions(tc.args.parameters)
+			got := GenerateUpdateVariableOptions(tc.args.parameters, tc.args.secretValue)
 			if diff := cmp.Diff(tc.want, got); diff != "" {
 				t.Errorf("r: -want, +got:\n%s", diff)
 			}
@@ -201,8 +232,9 @@ func TestGenerateUpdateVariableOptions(t *testing.T) {
 
 func TestIsVariableUpToDate(t *testing.T) {
 	type args struct {
-		variable *gitlab.ProjectVariable
-		p        *v1alpha1.VariableParameters
+		variable    *gitlab.ProjectVariable
+		secretValue *string
+		p           *v1alpha1.VariableParameters
 	}
 
 	cases := map[string]struct {
@@ -251,10 +283,53 @@ func TestIsVariableUpToDate(t *testing.T) {
 			},
 			want: false,
 		},
+		"SecretValueUpToDate": {
+			args: args{
+				p: &v1alpha1.VariableParameters{
+					Key:              variableKey,
+					VariableType:     &variableTypeLocal,
+					Protected:        &variableProtected,
+					Masked:           &variableMasked,
+					EnvironmentScope: &variableEnvScope,
+				},
+				secretValue: &variableValue,
+				variable: &gitlab.ProjectVariable{
+					Key:              variableKey,
+					Value:            variableValue,
+					VariableType:     variableType,
+					Masked:           variableMasked,
+					Protected:        variableProtected,
+					EnvironmentScope: variableEnvScope,
+				},
+			},
+			want: true,
+		},
+		"SecretValueDifferent": {
+			args: args{
+				p: &v1alpha1.VariableParameters{
+					Key:              variableKey,
+					VariableType:     &variableTypeLocal,
+					Protected:        &variableProtected,
+					Masked:           &variableMasked,
+					EnvironmentScope: &variableEnvScope,
+				},
+				secretValue: &variableValue,
+				variable: &gitlab.ProjectVariable{
+					Key:              variableKey,
+					Value:            "RANDOM VALUE",
+					VariableType:     variableType,
+					Masked:           variableMasked,
+					Protected:        variableProtected,
+					EnvironmentScope: variableEnvScope,
+				},
+			},
+			want: false,
+		},
 	}
+
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			got := IsVariableUpToDate(tc.args.p, tc.args.variable)
+			got := IsVariableUpToDate(tc.args.p, tc.args.secretValue, tc.args.variable)
 			if diff := cmp.Diff(tc.want, got); diff != "" {
 				t.Errorf("r: -want, +got:\n%s", diff)
 			}
